@@ -98,6 +98,7 @@ class SnAMain:
 
         self.accelerated = False
         self.acceleratedt1 = 0
+        self.__direction_heading = 0
         
         self.__temp_wp_count = 0
         self.__waypoint_count = 0
@@ -464,7 +465,7 @@ class SnAMain:
         for i in range(np.size(global_map,axis=0)):
             #Compute Vector
             obstacle_vector = [global_map[i][0]-self.__px,global_map[i][1]-self.__py]
-            print("Obstacle vector: ", obstacle_vector)
+            
             obstacle_vector_magnitude=self.__vector.mag2d(obstacle_vector)
 
             obstacle_mag_in_direc=(np.dot(direc_vec,obstacle_vector)/(self.__vector.mag2d(direc_vec)))
@@ -690,7 +691,11 @@ class SnAMain:
             
             # temp = self.__i_waypoints[0]
             # temp_wp_dist_vec=[self.__i_current_waypoint[0]-self.__px-temp[0],self.__i_current_waypoint[1]-self.__py-temp[1]] #used to find if the current vector to next waypoint i
-            heading = [np.cos(self.__yaw), np.sin(self.__yaw)]
+            if(self.__direction_heading==1):
+                heading = [np.cos(self.__yaw), np.sin(self.__yaw)]
+            elif(self.__direction_heading==-1):
+                heading = [np.cos(self.__yaw+np.pi), np.sin(self.__yaw+np.pi)]
+
             bool_temp,self.dist_temp=self.obstacle_in_direction(heading,self.__np_mat_to_list,self.desired_angle,self.engaging_distance) # if any obstacle on the way
             #print('bool_temp, dist_temp',bool_temp, self.dist_temp, temp_wp_dist_vec)
             if(bool_temp and not self.rolled_right):#and (self.__vx*self.__vx+self.__vy*self.__vy)>2): #if obstacle needs to be avoided
@@ -706,14 +711,16 @@ class SnAMain:
         
             if self.rolled_right and not self.pitched_forward:
                 print("############### max x #################", self.max_x)
-                self.__guided_pitch(self.max_x)
+                self.__guided_pitch(self.__direction_heading*self.max_x)
                 self.rolled_right = False
+                print('pitching distance',self.__direction_heading,self.max_x)
                 #if(bool_temp and self.__vector.mag2d(temp_wp_dist_vec)>abs(self.dist_temp) and not self.pitched_forward):
                 #self.__guided_pitch(0)
                 self.pitched_forward = True
                 self.__mode_changed_to_guided_from_auto = False        
 
     def update_mission(self):
+        
         
         if Globals.get_param_val('SNS_ENABLE') == 1:
             self.__sense_and_stop = True
@@ -759,6 +766,8 @@ class SnAMain:
                 self.__np_mat_to_list=obs.T+np.array([self.__px,self.__py]) #array in inertial coordinates
             else:
                 self.__np_mat_to_list=np.array([])
+
+            self.__np_mat_to_list = np.array([[20,-20],[22,-20],[18,-20]])
 
         if self.counter == 2:
             self.log_data()
@@ -807,6 +816,19 @@ class SnAMain:
                 if(self.__speed>7 and not self.accelerated):
                     self.accelerated = True
                     self.acceleratedt1 = time.time()
+                    yaw_vector = np.array([np.cos(self.__yaw),np.sin(self.__yaw)])
+                    if(np.dot(yaw_vector,self.wpvec)>0):
+                        self.__direction_heading = 1
+                    else:
+                        self.__direction_heading = -1
+                    print('using',self.__direction_heading)
+                    print(self.wpvec,self.__np_mat_to_list,self.__px,self.__py)
+                
+                if(self.__speed<3 and self.accelerated):
+                    self.accelerated = False
+                    print('updated acceleration')
+
+
             
                 #temp_wp_dist_vec=[self.__i_current_waypoint[0]-self.__px-temp[0],self.__i_current_waypoint[1]-self.__py-temp[1]] #used to find if the current vector to next waypoint i
                 #print('temp wp dist vec: ', temp_wp_dist_vec)
